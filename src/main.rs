@@ -1,7 +1,7 @@
 mod app;
 
 use app::App;
-use futures::executor::block_on;
+use async_std::task::block_on;
 
 pub fn main() -> anyhow::Result<()> {
     block_on(run())
