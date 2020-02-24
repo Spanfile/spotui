@@ -1,17 +1,23 @@
-use anyhow::anyhow;
 use std::{
+    cell::RefCell,
+    future::Future,
     io::{self, Stdout, Write},
-    sync::Mutex,
+    rc::Rc,
+    task::Poll,
 };
 use termion::{
     event::Key,
-    input::TermRead,
+    input::{Keys, TermRead},
     raw::{IntoRawMode, RawTerminal},
 };
-use tokio::task;
 
 pub struct Input {
-    stdout: Mutex<RawTerminal<Stdout>>,
+    stdout: Rc<RawTerminal<Stdout>>,
+}
+
+pub struct InputRead {
+    stdout: Rc<RawTerminal<Stdout>>,
+    keys: RefCell<Keys<termion::AsyncReader>>,
 }
 
 impl Input {
@@ -19,35 +25,43 @@ impl Input {
         let stdout = io::stdout().into_raw_mode()?;
         stdout.suspend_raw_mode()?;
         Ok(Input {
-            stdout: Mutex::new(stdout),
+            stdout: Rc::new(stdout),
         })
     }
 
-    pub async fn read(&self) -> anyhow::Result<Key> {
-        task::spawn_blocking(move || {
-            let mut keys = io::stdin().keys();
-            self.activate_raw_mode()?;
+    pub async fn read(&self) -> anyhow::Result<InputRead> {
+        let stdout = self.stdout.clone();
+        let keys = termion::async_stdin().keys();
 
-            if let Some(key_result) = keys.next() {
-                let key = key_result?;
-                self.suspend_raw_mode()?;
-                Ok(key)
-            } else {
-                Err(anyhow!("no key"))
-            }
+        Ok(InputRead {
+            stdout,
+            keys: RefCell::new(keys),
         })
-        .await?
     }
+}
 
-    pub fn activate_raw_mode(&self) -> anyhow::Result<()> {
-        Ok(self.stdout.get_mut()?.activate_raw_mode()?)
-    }
+impl Future for InputRead {
+    type Output = anyhow::Result<Key>;
 
-    pub fn suspend_raw_mode(&self) -> anyhow::Result<()> {
-        Ok(self.stdout.get_mut()?.suspend_raw_mode()?)
-    }
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        if let Err(e) = self.stdout.activate_raw_mode() {
+            return Poll::Ready(Err(e.into()));
+        }
 
-    pub fn flush(&self) -> anyhow::Result<()> {
-        Ok(self.stdout.get_mut()?.lock().flush()?)
+        let result = match self.keys.try_borrow_mut()?.next() {
+            Some(key) => Poll::Ready(Ok(key?)),
+            None => Poll::Pending,
+        };
+
+        match self.stdout.suspend_raw_mode() {
+            Err(e) => Poll::Ready(Err(e.into())),
+            _ => match self.stdout.lock().flush() {
+                Err(e) => Poll::Ready(Err(e.into())),
+                _ => result,
+            },
+        }
     }
 }

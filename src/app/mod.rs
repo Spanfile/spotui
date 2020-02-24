@@ -2,7 +2,7 @@ mod input;
 
 use input::Input;
 use tokio::{
-    select,
+    pin, select,
     stream::StreamExt,
     time::{self, Duration},
 };
@@ -19,17 +19,18 @@ impl App {
         let input = Input::new()?;
 
         loop {
+            let input_read = input.read();
+            pin!(input_read);
             select! {
                 _ = ticker.next() => {
                     println!("tick");
                 }
-                key_result = input.read() => {
+                key_result = input_read => {
                     let key = key_result?;
-                    println!("{:?}", key);
                 }
             }
         }
 
-        Ok(())
+        // Ok(())
     }
 }
