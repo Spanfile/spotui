@@ -6,5 +6,6 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.26"
-async-std = { version = "1.5.0", features = ["unstable"] }
+tokio = { version = "0.2.11", features = ["macros", "rt-threaded", "time", "stream", "blocking"] }
 futures = "0.3.4"
+termion = "1.5.5"

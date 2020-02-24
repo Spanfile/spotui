@@ -1,11 +1,11 @@
 mod input;
 
-use async_std::{prelude::*, stream, stream::Stream};
-use futures::{
-    future::{Fuse, FusedFuture, FutureExt},
-    pin_mut, select,
+use input::Input;
+use tokio::{
+    select,
+    stream::StreamExt,
+    time::{self, Duration},
 };
-use std::time::Duration;
 
 pub struct App {}
 
@@ -15,22 +15,21 @@ impl App {
     }
 
     pub async fn run(&self) -> anyhow::Result<()> {
-        let ticker = tick_stream();
-
-        pin_mut!(ticker);
+        let mut ticker = time::interval(Duration::from_secs(1));
+        let input = Input::new()?;
 
         loop {
             select! {
-                () = ticker => {
+                _ = ticker.next() => {
                     println!("tick");
+                }
+                key_result = input.read() => {
+                    let key = key_result?;
+                    println!("{:?}", key);
                 }
             }
         }
 
         Ok(())
     }
-}
-
-async fn tick_stream() -> impl Stream<Item = ()> {
-    stream::interval(Duration::from_secs(1)).fuse()
 }
