@@ -23,6 +23,7 @@ impl App {
             select! {
                 _ = ticker.next() => {
                     ticks += 1;
+                    println!("tick");
                 }
                 key_result = input.read() => {
                     let key = key_result?;
