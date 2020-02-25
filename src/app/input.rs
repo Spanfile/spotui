@@ -1,67 +1,39 @@
+use anyhow::anyhow;
 use std::{
-    cell::RefCell,
-    future::Future,
     io::{self, Stdout, Write},
-    rc::Rc,
-    task::Poll,
+    sync::Arc,
 };
 use termion::{
     event::Key,
-    input::{Keys, TermRead},
+    input::TermRead,
     raw::{IntoRawMode, RawTerminal},
 };
+use tokio::task;
 
 pub struct Input {
-    stdout: Rc<RawTerminal<Stdout>>,
-}
-
-pub struct InputRead {
-    stdout: Rc<RawTerminal<Stdout>>,
-    keys: RefCell<Keys<termion::AsyncReader>>,
+    stdout: Arc<RawTerminal<Stdout>>,
 }
 
 impl Input {
     pub fn new() -> anyhow::Result<Self> {
         let stdout = io::stdout().into_raw_mode()?;
-        stdout.suspend_raw_mode()?;
+        stdout.activate_raw_mode()?;
         Ok(Input {
-            stdout: Rc::new(stdout),
+            stdout: Arc::new(stdout),
         })
     }
 
-    pub async fn read(&self) -> anyhow::Result<InputRead> {
-        let stdout = self.stdout.clone();
-        let keys = termion::async_stdin().keys();
-
-        Ok(InputRead {
-            stdout,
-            keys: RefCell::new(keys),
+    pub async fn read(&self) -> anyhow::Result<Key> {
+        task::spawn_blocking(move || {
+            let stdin = io::stdin();
+            let mut keys = stdin.lock().keys();
+            if let Some(key_result) = keys.next() {
+                let key = key_result?;
+                Ok(key)
+            } else {
+                Err(anyhow!("no key"))
+            }
         })
-    }
-}
-
-impl Future for InputRead {
-    type Output = anyhow::Result<Key>;
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        if let Err(e) = self.stdout.activate_raw_mode() {
-            return Poll::Ready(Err(e.into()));
-        }
-
-        let result = match self.keys.try_borrow_mut()?.next() {
-            Some(key) => Poll::Ready(Ok(key?)),
-            None => Poll::Pending,
-        };
-
-        match self.stdout.suspend_raw_mode() {
-            Err(e) => Poll::Ready(Err(e.into())),
-            _ => match self.stdout.lock().flush() {
-                Err(e) => Poll::Ready(Err(e.into())),
-                _ => result,
-            },
-        }
+        .await?
     }
 }
