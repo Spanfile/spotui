@@ -1,10 +1,14 @@
 [package]
-name = "spotui"
-version = "0.1.0"
 authors = ["Spanfile <spansdev@gmail.com>"]
 edition = "2018"
+name = "spotui"
+version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.26"
-tokio = { version = "0.2.11", features = ["macros", "rt-threaded", "time", "stream", "blocking"] }
 termion = "1.5.5"
+tui = "0.8.0"
+
+[dependencies.tokio]
+features = ["macros", "rt-threaded", "time", "stream", "blocking"]
+version = "0.2.11"

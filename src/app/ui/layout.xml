@@ -1,0 +1,29 @@
+<Layout direction="vertical" margin="1">
+    <Constraint min="0">
+        <Layout direction="horizontal">
+            <Constraint length="25">
+                <Block title="Playlists" borders="top right">
+                </Block>
+            </Constraint>
+
+            <Constraint min="0">
+                <Layout direction="vertical" horizontal-margin="1">
+                    <Constraint length="5">
+                        <Block title="Search" borders="top">
+                        </Block>
+                    </Constraint>
+
+                    <Constraint min="0">
+                        <Block title="Tracks" borders="top">
+                        </Block>
+                    </Constraint>
+                </Layout>
+            </Constraint>
+        </Layout>
+    </Constraint>
+
+    <Constraint length="5">
+        <Block title="Player" borders="top">
+        </Block>
+    </Constraint>
+</Layout>
